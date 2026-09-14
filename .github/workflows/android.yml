@@ -38,7 +38,10 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: Installer les composants Android
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        uses: android-actions/setup-android@v3
+        with:
+          log-accepted-android-sdk-licenses: false
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
       - name: Generer le projet Android
         run: python3 generate_project.py
