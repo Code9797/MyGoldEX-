@@ -19,7 +19,7 @@ jobs:
   build:
     name: Tests et APK Android
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - name: Recuperer le depot
         uses: actions/checkout@v4
@@ -52,7 +52,7 @@ jobs:
 
       - name: Tester et compiler
         working-directory: generated/MyGoldEX
-        run: bash ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace
+        run: bash ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace
 
       - name: Verifier la signature et preparer APK
         run: |
@@ -67,6 +67,34 @@ jobs:
           name: MyGoldEX-APK
           path: artifacts/MyGoldEX.apk
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Telecharger MT5 depuis le lien officiel
+        run: |
+          python3 generated/MyGoldEX/ci/download_mt5.py
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging mt5.apk > evidence/mt5-package.txt
+          python3 -c 'from pathlib import Path; assert "package: name='"'"'net.metaquotes.metatrader5'"'"'" in Path("evidence/mt5-package.txt").read_text()'
+
+      - name: Activer KVM sur le runner
+        run: sudo chmod 666 /dev/kvm
+
+      - name: Verifier la superposition sur MT5 Android 14
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: bash generated/MyGoldEX/ci/test_mt5.sh
+
+      - name: Fournir les preuves du test MT5
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyGoldEX-MT5-Verification
+          path: evidence/
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Fournir les sources Android
@@ -86,6 +114,7 @@ jobs:
             generated/MyGoldEX/app/build.gradle.kts
             generated/MyGoldEX/app/src/
             generated/MyGoldEX/examples/
+            generated/MyGoldEX/ci/
           if-no-files-found: warn
           retention-days: 14
 
@@ -97,5 +126,7 @@ jobs:
           path: |
             generated/MyGoldEX/app/build/reports/tests/
             generated/MyGoldEX/app/build/test-results/
+            generated/MyGoldEX/app/build/reports/androidTests/
+            generated/MyGoldEX/app/build/outputs/androidTest-results/
           if-no-files-found: ignore
           retention-days: 14
